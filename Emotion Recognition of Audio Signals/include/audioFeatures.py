@@ -137,7 +137,7 @@ class Extractor(object):
             writer.writerow(data)
             file.close()
 
-    def features_extractor_windowed(track, sr, window_seconds = 15, hop_seconds = 10, mfccs_n = 40):
+    def features_extractor_windowed(self, track, sr, window_seconds = 15, hop_seconds = 10, mfccs_n = 40):
         duration = int(librosa.get_duration(y=track, sr=sr))
         frame_len, hop_len = min(window_seconds, duration)*sr, min(hop_seconds, duration)*sr 
         frames = librosa.util.frame(
