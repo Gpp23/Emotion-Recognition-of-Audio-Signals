@@ -30,12 +30,12 @@ import wave
 
 
 class ERAS(object):
-    def __init__(self, *args):
-        super(ERAS, self).__init__(*args)
+    def __init__(self, dataset = "dataset(mffc=40).csv", emotions = "arrabbiato calmo cupo drammatico felice motivante romantico triste vivace", mfccs_n = 40):
         ERAS.__model = None
         ERAS.__scaler = None
         ERAS.__encoder = None
-        ERAS.extractor = af.Extractor()
+        ERAS.__dataset = dataset
+        ERAS.__extractor = af.Extractor(emotions, mfccs_n)
         ERAS.__colors = {'Angry': 'red',
                 'Inspirational': 'lightblue',
                 'Sad': 'gray',
@@ -47,10 +47,11 @@ class ERAS(object):
                 'Dramatic': 'purple'}
         ERAS.__categories = "Angry Calm Dark Dramatic Happy Inspirational Romantic Sad Bright".split()
 
-
-    def __dataPreProcessing(dataset, scaler, test_size = 0.2):
+    def setDataset(dataset): ERAS.__dataset = dataset
+    
+    def __dataPreProcessing(scaler, test_size = 0.2):
         
-        data = pd.read_csv(dataset, engine='python')
+        data = pd.read_csv(ERAS.__dataset, engine='python')
         data.head()
         
         emotion_list = data.iloc[:, -1]
@@ -81,10 +82,10 @@ class ERAS(object):
 
         plt.show()
 
-    def trainModel(self, dataset = "dataset(mffc=40).csv", test_size = 0.2, model = KNeighborsClassifier(n_neighbors=2), showScore = True, scaler=StandardScaler()):
+    def train(self, test_size = 0.2, model = KNeighborsClassifier(n_neighbors=2), showScore = True, scaler=StandardScaler()):
         
         
-        X_train, X_test, y_train, y_test, scaler, encoder = ERAS.__dataPreProcessing(dataset, scaler, test_size)
+        X_train, X_test, y_train, y_test, scaler, encoder = ERAS.__dataPreProcessing(scaler, test_size)
         
         strtfdKFold = StratifiedKFold(n_splits=10)
         kfold = strtfdKFold.split(X_train, y_train)
@@ -117,7 +118,7 @@ class ERAS(object):
         
         y, sr = librosa.load(track, offset = offset, duration = duration, mono = True, sr = sr)
 
-        features = ERAS.extractor.features_extractor_windowed(track = y, sr = sr, mfccs_n = 40, window_seconds = window_seconds, hop_seconds = hop_seconds)
+        features = ERAS.__extractor.featuresExtractorWindowed(track = y, sr = sr, window_seconds = window_seconds, hop_seconds = hop_seconds)
 
         prediction = ERAS.__encoder.inverse_transform(ERAS.__model.predict(ERAS.__scaler.transform(features)))
         
@@ -159,7 +160,6 @@ class ERAS(object):
         df['FrameTime start'] = StartA;
         df['FrameTime End'] = EndA
 
-        
         fig, ax = plt.subplots(ncols=2, figsize=(18,8))
         prediction = df['Emotions'].value_counts().sort_values(ascending=False);
         df['Emotions'].value_counts().plot.pie(labels = prediction.index, colors=[ERAS.__colors[key] for key in prediction.index], ax=ax[0])
@@ -191,7 +191,7 @@ class ERAS(object):
         plt.ylim(max(3,max(df['FrameTime End'][:])*3/100),1)
         plt.show()
         
-    def voiceEmotion(sr = 44100, seconds = 30):
+    def voiceEmotion(self, sr = 44100, seconds = 30):
 
         chunk = 1024  # Record in chunks of 1024 samples
         sample_format = pyaudio.paInt16  # 16 bits per sample
@@ -205,7 +205,7 @@ class ERAS(object):
 
         stream = p.open(format=sample_format,
                         channels=channels,
-                        rate=fs,
+                        rate=sr,
                         frames_per_buffer=chunk,
                         input=True)
 
@@ -232,4 +232,4 @@ class ERAS(object):
         wf.writeframes(b''.join(frames))
         wf.close()
         
-        ERAS.predict(track=filename)
+        ERAS.predict(self,track=filename)

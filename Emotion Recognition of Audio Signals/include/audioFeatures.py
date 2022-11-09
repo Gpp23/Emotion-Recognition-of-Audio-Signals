@@ -9,11 +9,12 @@ import scipy
 warnings.filterwarnings("ignore")
 
 class Extractor(object):
-    def __init__(self, emotions = "arrabbiato calmo cupo drammatico felice motivante romantico triste vivace"):
-        #super(Extractor, self).__init__(*args)
+    def __init__(self, emotions = "arrabbiato calmo cupo drammatico felice motivante romantico triste vivace", mfccs_n = 40):
         Extractor.__emotions = emotions.split()
+        Extractor.__mfccs_n = mfccs_n
+        Extractor.__header = Extractor.__headerMaker(self)
         
-    def __header_maker(self, mfccs_n = 40):
+    def __headerMaker(self):
         header = ""
 
         for i in range(0, 12):
@@ -21,9 +22,9 @@ class Extractor(object):
         for i in range(0, 12):
             header += "chroma_std_" + str(i) + " "
 
-        for i in range(0, mfccs_n):
+        for i in range(0, Extractor.__mfccs_n):
             header += "mfccs_mean_" + str(i) + " "
-        for i in range(0, mfccs_n):
+        for i in range(0, Extractor.__mfccs_n):
             header += "mfccs_std_" + str(i) + " "
 
         header += "cent_mean cent_std cent_skew "
@@ -37,7 +38,7 @@ class Extractor(object):
 
         return header.split()
 
-    def features_extractor(song_name = "", y = [], sr = 22500, mfccs_n = 40):
+    def featuresExtractor(song_name = "", y = [], sr = 22500):
         
         if(song_name != ""): y, sr = librosa.load(song_name)
         
@@ -56,7 +57,7 @@ class Extractor(object):
 
         zcr = librosa.feature.zero_crossing_rate(y_harmonic)
 
-        mfccs = librosa.feature.mfcc(y=y_harmonic, sr=sr, n_mfcc=mfccs_n)
+        mfccs = librosa.feature.mfcc(y=y_harmonic, sr=sr, n_mfcc=Extractor.__mfccs_n)
 
         chroma_mean = np.mean(chroma, axis=1)
         chroma_std = np.std(chroma, axis=1)
@@ -73,9 +74,9 @@ class Extractor(object):
         mfccs_std = np.std(mfccs, axis=1)
 
         mfccs_df = pd.DataFrame()
-        for i in range(0, mfccs_n):
+        for i in range(0, Extractor.__mfccs_n):
             mfccs_df["mfccs_mean_" + str(i)] = mfccs_mean[i]
-        for i in range(0, mfccs_n):
+        for i in range(0, Extractor.__mfccs_n):
             mfccs_df["mfccs_std_" + str(i)] = mfccs_mean[i]
         mfccs_df.loc[0] = np.concatenate((mfccs_mean, mfccs_std), axis=0)
 
@@ -130,14 +131,14 @@ class Extractor(object):
 
         return to_append.split()
 
-    def __csv_maker(file_name, data, permesso = "a"):
-        file = open(file_name, permesso, newline="")
+    def __csvMaker(file_name, data, perms = "a"):
+        file = open(file_name, perms, newline="")
         with file:
             writer = csv.writer(file)
             writer.writerow(data)
             file.close()
 
-    def features_extractor_windowed(self, track, sr, window_seconds = 15, hop_seconds = 10, mfccs_n = 40):
+    def featuresExtractorWindowed(self, track, sr = 22050, window_seconds = 15, hop_seconds = 10):
         duration = int(librosa.get_duration(y=track, sr=sr))
         frame_len, hop_len = min(window_seconds, duration)*sr, min(hop_seconds, duration)*sr 
         frames = librosa.util.frame(
@@ -145,25 +146,25 @@ class Extractor(object):
         data = pd.DataFrame()
         for y in frames:
             
-            data =  data.append(pd.Series(Extractor.features_extractor(y = y, sr = sr, mfccs_n = mfccs_n)), ignore_index = True)
+            data =  data.append(pd.Series(Extractor.featuresExtractor(y = y, sr = sr)), ignore_index = True)
         
         return np.array(data, dtype = float)
 
-    def dataset_maker(self,
+    def datasetMaker(self,
         path_tracks = "Tracks/",
         file_name="dataset",
         encoder=LabelEncoder(),
-        mfccs_n = 40,
         sr = 22050,
         window_seconds = 15,
-        hop_seconds = 10
+        hop_seconds = 10,
+        print_metadata = False
     ):
         encoder = encoder.fit(Extractor.__emotions)
-        header = Extractor.__header_maker(mfccs_n)
         
-        Extractor.__csv_maker(file_name + ".csv", header, "w")
+        Extractor.__csvMaker(file_name + ".csv", Extractor.__header, "w")
 
-        Extractor.__csv_maker(file_name= file_name + "_metadata.csv", data="file_name start end classID class".split(), permesso="w")
+        if(print_metadata): 
+            Extractor.__csvMaker(file_name= file_name + "_metadata.csv", data="file_name start end classID class".split(), perms="w")
         
         count = 0
         for g in Extractor.__emotions:
@@ -174,7 +175,7 @@ class Extractor(object):
                 track, sr = librosa.load(songname, mono=True, sr = sr)
 
                 count += 1
-                print(str(count) + ")Nuova traccia: " + songname)
+                print(str(count) + ")New track: " + songname)
                 
                 frame_len, hop_len = window_seconds*sr, hop_seconds*sr  # 15s window con 10s hop
                 frames = librosa.util.frame(
@@ -186,19 +187,19 @@ class Extractor(object):
 
                 for y in frames:
                     
-                    data = Extractor.features_extractor(y = y, sr = sr, mfccs_n = mfccs_n)
+                    data = Extractor.featuresExtractor(y = y, sr = sr)
                     data.append(g)
-                    Extractor.__csv_maker(file_name + ".csv", data)
+                    Extractor.__csvMaker(file_name + ".csv", data)
                     
-                    data = [
-                        filename.encode("utf-8"),
-                        start,
-                        end,
-                        encoder.transform([g])[0],
-                        g,
-                    ]
+                    if(print_metadata):     
+                        data = [
+                            filename.encode("utf-8"),
+                            start,
+                            end,
+                            encoder.transform([g])[0],
+                            g,
+                        ]
 
-                    Extractor.__csv_maker(file_name + "_metadata.csv", data)
-                    
-                    start += int(hop_len / sr)
-                    end = start + int(frame_len / sr)
+                        Extractor.__csvMaker(file_name + "_metadata.csv", data)
+                        start += int(hop_len / sr)
+                        end = start + int(frame_len / sr)
