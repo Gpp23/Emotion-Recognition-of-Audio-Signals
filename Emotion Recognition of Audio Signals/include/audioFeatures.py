@@ -9,8 +9,8 @@ import scipy
 warnings.filterwarnings("ignore")
 
 class Extractor(object):
-    def __init__(self, emotions = "arrabbiato calmo cupo drammatico felice motivante romantico triste vivace", mfccs_n = 40):
-        Extractor.__emotions = emotions.split()
+    def __init__(self, emotions = "Angry Calm Dark Dramatic Happy Inspirational Romantic Sad Bright".split(), mfccs_n = 40):
+        Extractor.__emotions = emotions
         Extractor.__mfccs_n = mfccs_n
         Extractor.__header = Extractor.__headerMaker(self)
         
@@ -131,8 +131,8 @@ class Extractor(object):
 
         return to_append.split()
 
-    def __csvMaker(file_name, data, perms = "a"):
-        file = open(file_name, perms, newline="")
+    def __csvMaker(filename, data, perms = "a"):
+        file = open(filename, perms, newline="")
         with file:
             writer = csv.writer(file)
             writer.writerow(data)
@@ -152,7 +152,7 @@ class Extractor(object):
 
     def datasetMaker(self,
         path_tracks = "Tracks/",
-        file_name="dataset",
+        filename="dataset",
         encoder=LabelEncoder(),
         sr = 22050,
         window_seconds = 15,
@@ -161,10 +161,10 @@ class Extractor(object):
     ):
         encoder = encoder.fit(Extractor.__emotions)
         
-        Extractor.__csvMaker(file_name + ".csv", Extractor.__header, "w")
+        Extractor.__csvMaker(filename + ".csv", Extractor.__header, "w")
 
         if(print_metadata): 
-            Extractor.__csvMaker(file_name= file_name + "_metadata.csv", data="file_name start end classID class".split(), perms="w")
+            Extractor.__csvMaker(file_name= filename + "_metadata.csv", data="file_name start end classID class".split(), perms="w")
         
         count = 0
         for g in Extractor.__emotions:
@@ -189,7 +189,7 @@ class Extractor(object):
                     
                     data = Extractor.featuresExtractor(y = y, sr = sr)
                     data.append(g)
-                    Extractor.__csvMaker(file_name + ".csv", data)
+                    Extractor.__csvMaker(filename + ".csv", data)
                     
                     if(print_metadata):     
                         data = [
@@ -200,6 +200,6 @@ class Extractor(object):
                             g,
                         ]
 
-                        Extractor.__csvMaker(file_name + "_metadata.csv", data)
+                        Extractor.__csvMaker(filename + "_metadata.csv", data)
                         start += int(hop_len / sr)
                         end = start + int(frame_len / sr)

@@ -30,10 +30,10 @@ import wave
 
 
 class ERAS(object):
-    def __init__(self, dataset = "dataset(mffc=40).csv", emotions = "arrabbiato calmo cupo drammatico felice motivante romantico triste vivace", mfccs_n = 40):
-        ERAS.__model = None
-        ERAS.__scaler = None
-        ERAS.__encoder = None
+    def __init__(self, model = KNeighborsClassifier(n_neighbors=2), scaler = StandardScaler(), dataset = "dataset(mffc=40).csv", emotions = "Angry Calm Dark Dramatic Happy Inspirational Romantic Sad Bright".split(), mfccs_n = 40):
+        ERAS.__model = model
+        ERAS.__scaler = scaler
+        ERAS.__encoder = LabelEncoder()
         ERAS.__dataset = dataset
         ERAS.__extractor = af.Extractor(emotions, mfccs_n)
         ERAS.__colors = {'Angry': 'red',
@@ -45,34 +45,33 @@ class ERAS(object):
                 'Calm': 'green',
                 'Romantic': 'pink',
                 'Dramatic': 'purple'}
-        ERAS.__categories = "Angry Calm Dark Dramatic Happy Inspirational Romantic Sad Bright".split()
+        ERAS.__categories = emotions
 
     def setDataset(dataset): ERAS.__dataset = dataset
     
-    def __dataPreProcessing(scaler, test_size = 0.2):
+    def __dataPreProcessing(test_size = 0.2):
         
         data = pd.read_csv(ERAS.__dataset, engine='python')
         data.head()
         
         emotion_list = data.iloc[:, -1]
-        encoder = LabelEncoder()
-        encoder = encoder.fit(ERAS.__categories)
-        y = encoder.transform(emotion_list)
+        ERAS.__encoder = ERAS.__encoder.fit(ERAS.__categories)
+        y = ERAS.__encoder.transform(emotion_list)
         
         X = np.array(data.iloc[:, :-1], dtype = float)
         
         X_train, X_test, y_train, y_test = train_test_split(X, y, stratify = y, test_size = test_size)
         
-        scaler = scaler.fit(X_train)
+        ERAS.__scaler = ERAS.__scaler.fit(X_train)
         
-        X_train = scaler.transform(X_train)
-        X_test = scaler.transform(X_test)
+        X_train = ERAS.__scaler.transform(X_train)
+        X_test = ERAS.__scaler.transform(X_test)
         
-        return X_train, X_test, y_train, y_test, scaler, encoder
+        return X_train, X_test, y_train, y_test
 
-    def __modelScore(model, X_test, y_test):
+    def __modelScore(X_test, y_test):
             
-        prediction = model.predict(X_test)
+        prediction = ERAS.__model.predict(X_test)
 
         print(classification_report(prediction, y_test, target_names = ERAS.__categories))
         df_cm = pd.DataFrame(confusion_matrix(prediction, y_test, normalize='true'), index = [i for i in ERAS.__categories],
@@ -82,32 +81,27 @@ class ERAS(object):
 
         plt.show()
 
-    def train(self, test_size = 0.2, model = KNeighborsClassifier(n_neighbors=2), showScore = True, scaler=StandardScaler()):
+    def train(self, test_size = 0.2, showScore = True):
         
         
-        X_train, X_test, y_train, y_test, scaler, encoder = ERAS.__dataPreProcessing(scaler, test_size)
+        X_train, X_test, y_train, y_test = ERAS.__dataPreProcessing(test_size)
         
         strtfdKFold = StratifiedKFold(n_splits=10)
         kfold = strtfdKFold.split(X_train, y_train)
         scores = []
         
         for k, (train, test) in enumerate(kfold):
-            model.fit(X_train[train], y_train[train])
-            score = model.score(X_train[test], y_train[test])
+            ERAS.__model.fit(X_train[train], y_train[train])
+            score = ERAS.__model.score(X_train[test], y_train[test])
             scores.append(score)
             print('Fold: %2d, Training/Test Split Distribution: %s, Accuracy: %.3f' % (k+1, np.bincount(y_train[train]), score))
     
         print('\n\nCross-Validation accuracy: %.3f +/- %.3f' %(np.mean(scores), np.std(scores)))
-
-        #model = model.fit(X_train, y_train)
         
         if(showScore):
-           ERAS.__modelScore(model, X_test, y_test)
+           ERAS.__modelScore(X_test, y_test)
         
         
-        ERAS.__model = model
-        ERAS.__encoder = encoder
-        ERAS.__scaler = scaler
         return self
 
     def predict(self, track, offset = None, duration = None, sr = 22050, window_seconds = 15, hop_seconds = 10, transcribe = False):
